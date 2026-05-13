@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analisador IRRF</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border-radius: 16px;
+      padding: 2.5rem;
+      max-width: 720px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+    }
+
+    h1 {
+      color: #0f9b8e;
+      text-align: center;
+      margin-bottom: .25rem;
+      font-size: 1.8rem;
+    }
+
+    .sub {
+      text-align: center;
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: .9rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: .3rem;
+      font-weight: 600;
+      color: #ccc;
+      font-size: .85rem;
+    }
+
+    textarea,
+    input[type="text"],
+    input[type="url"] {
+      width: 100%;
+      padding: .7rem .9rem;
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: .9rem;
+      transition: border .2s;
+    }
+
+    textarea:focus,
+    input:focus {
+      outline: none;
+      border-color: #0f9b8e;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .hint {
+      font-size: .75rem;
+      color: #666;
+      margin-top: .2rem;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 2rem;
+      padding: 1rem;
+      background: linear-gradient(135deg, #0f9b8e, #0d7377);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(15, 155, 142, .4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
+
+    #status {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: .9rem;
+    }
+
+    .erro {
+      color: #e74c3c;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>📊 Analisador IRRF</h1>
+    <p class="sub">Cruze respostas de formulários com uma lista de nomes</p>
+
+    <form id="form" action="/submit" method="POST">
+
+      <label for="nomes">👤 Nomes (um por linha)</label>
+      <textarea name="nomes" id="nomes" placeholder="Nome 1...&#10;Nome 2...&#10;Nome 3..." required></textarea>
+
+      <label for="amostras">🔢 Amostras (separadas por vírgula)</label>
+      <input type="text" name="amostras" id="amostras" value="A1,A2,A3,A4" required>
+
+      <div class="row">
+        <div>
+          <label for="sniff">👃 Sniff</label>
+          <input type="url" name="sniff" id="sniff" placeholder="Caminho ou URL">
+        </div>
+        <div>
+          <label for="molhada">💧 Molhada</label>
+          <input type="url" name="molhada" id="molhada" placeholder="Caminho ou URL">
+        </div>
+        <div>
+          <label for="umida">🧺 Úmida</label>
+          <input type="url" name="umida" id="umida" placeholder="Caminho ou URL">
+        </div>
+        <div>
+          <label for="seca">☀️ Seca</label>
+          <input type="url" name="seca" id="seca" placeholder="Caminho ou URL">
+        </div>
+      </div>
+      <p class="hint">Deixe em branco os formulários que não tem. Aceita URLs do Google Sheets.</p>
+
+      <div class="row">
+        <div>
+          <label for="coluna_nome">📁 Coluna nome (CSV)</label>
+          <input type="text" name="coluna_nome" id="coluna_nome" value="Nome">
+        </div>
+        <div>
+          <label for="regex_codigo">🔍 Regex amostra</label>
+          <input type="text" name="regex_codigo" id="regex_codigo" value="^A[1-4]$">
+        </div>
+      </div>
+
+      <label for="stopwords">✂️ Stopwords (vírgula)</label>
+      <input type="text" name="stopwords" id="stopwords" value="de,da,do,dos,das,e,o,a,os,as">
+
+      <button type="submit" id="btn">▶ Executar</button>
+    </form>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('form');
+    const btn = document.getElementById('btn');
+    const status = document.getElementById('status');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      btn.textContent = '⏳ Processando…';
+      status.innerHTML = '<span style="color:#0f9b8e">Aguarde, processando…</span>';
+
+      const data = new FormData(form);
+
+      try {
+        const resp = await fetch('/submit', { method: 'POST', body: data });
+        const json = await resp.json();
+
+        if (json.erro) {
+          status.innerHTML = `<span class="erro">❌ ${json.erro}</span>`;
+        } else if (json.redirect) {
+          window.location.href = json.redirect;
+        } else {
+          status.innerHTML = `<span>✅ ${json.total || ''} linhas processadas.</span>`;
+        }
+      } catch (err) {
+        status.innerHTML = `<span class="erro">❌ Erro de conexão: ${err}</span>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ Executar';
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -1,5 +1,6 @@
 """Geração de relatório com tabela formatada usando Rich."""
 
+from io import StringIO
 from typing import List, Dict
 
 from rich.console import Console
@@ -134,3 +135,90 @@ def exibir_nao_encontrados(nomes: List[str]) -> None:
     for n in nomes:
         console.print(f"  [dim]• {n}[/]")
     console.print()
+
+
+def exibir_tabela_html(linhas: List[Dict], titulo: str = "Resultado") -> str:
+    """
+    Gera HTML completo com a tabela formatada via Rich export.
+
+    Retorna uma string HTML pronta para ser servida.
+    """
+    html_console = Console(record=True, width=120)
+
+    if not linhas:
+        html_console.print("[yellow]Nenhum dado para exibir.[/]")
+        return html_console.export_html(inline_styles=True)
+
+    tipos_raw = [k for k in linhas[0] if k not in ("nome", "amostra")]
+    tipos = _ordenar_tipos(tipos_raw)
+
+    table = Table(
+        title=f"[bold blue]{titulo}[/]",
+        header_style="bold cyan",
+        border_style="blue",
+        row_styles=["", "dim"],
+    )
+    table.add_column("Nome", style="white", no_wrap=False, width=32)
+    table.add_column("Amostra", style="bold yellow", justify="center", width=8)
+
+    for t in tipos:
+        label = TIPO_LABEL.get(t, t)
+        table.add_column(label, justify="center", width=10)
+
+    for linha in linhas:
+        nome = linha["nome"]
+        amostra = linha["amostra"]
+        valores = [_status_icon(linha.get(t, False)) for t in tipos]
+        table.add_row(nome, amostra, *valores)
+
+    html_console.print(table)
+    html_console.print()
+
+    # Resumo
+    total = len(linhas)
+    n_tipos = len(tipos)
+    completos = sum(1 for l in linhas if all(l.get(t, False) is True for t in tipos))
+    pendentes = sum(
+        1 for l in linhas
+        if not all(_is_preenchido(l.get(t, False)) for t in tipos)
+    )
+    incertos = total - completos - pendentes
+    total_celulas = sum(
+        sum(1 for t in tipos if _is_preenchido(l.get(t, False))) for l in linhas
+    )
+    html_console.print(
+        f"[bold]Total:[/] {total}  |  "
+        f"[bold green]Completos:[/] {completos}  |  "
+        f"[bold yellow]Incerto:[/] {incertos}  |  "
+        f"[bold red]Pendentes:[/] {pendentes}  |  "
+        f"[bold]Células:[/] {total_celulas}/{total * n_tipos}"
+    )
+
+    raw = html_console.export_html(inline_styles=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analisador IRRF — {titulo}</title>
+<style>
+  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 2rem; }}
+  .container {{ max-width: 1000px; margin: 0 auto; background: #16213e; border-radius: 12px; padding: 2rem; }}
+  h1 {{ color: #0f9b8e; text-align: center; }}
+  a {{ color: #0f9b8e; }}
+  .rich-output {{ overflow-x: auto; }}
+  //.rich-output, .rich-output * {{ color: #e0e0e0 !important; }}
+  .rich-output {{ color: #e0e0e0; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📊 {titulo}</h1>
+  <div class="rich-output">{raw}</div>
+  <p style="text-align:center; margin-top:2rem">
+    <a href="/">← Nova consulta</a>
+  </p>
+</div>
+</body>
+</html>"""

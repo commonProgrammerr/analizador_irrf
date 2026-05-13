@@ -56,8 +56,16 @@ def main(
     exibir_tabela(linhas)
 
 
+def web_main() -> None:
+    """Inicia o servidor web (FastAPI + Uvicorn)."""
+    import uvicorn
+    from .web import app
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
 __all__ = [
     "main",
+    "web_main",
     "processar",
     "exibir_tabela",
     "exibir_nao_encontrados",
