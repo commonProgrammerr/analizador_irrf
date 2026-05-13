@@ -1,0 +1,22 @@
+[project]
+name = "analizador-irrf"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "André Escorel", email = "gustavo.escorel@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy==2.4.4",
+    "pandas==3.0.3",
+    "python-dateutil==2.9.0.post0",
+    "six==1.17.0",
+]
+
+[project.scripts]
+analizador-irrf = "analizador_irrf:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
