@@ -1,94 +1,101 @@
 """Motor de cruzamento: processa respostas e gera relatório de acompanhamento."""
 
-import os
-import sys
-import pandas as pd
 from collections import defaultdict
-from glob import glob
 from typing import Dict, List, Optional, Tuple
 
-from .normalizer import normalizar_nome, normalizar_coluna, parse_stopwords
-from .reader import ler_respostas, extrair_tipo_formulario
+import pandas as pd
+from rich import print as rprint
+
+from .normalizer import normalizar_nome, parse_stopwords
+from .reader import ler_respostas
 
 
 def processar(
-    caminho_output: str,
-    pasta_respostas: str,
-    amostras: List[str],
-    coluna_nome: str = "Nome",
+    nomes: List[str],
+    amostras: Optional[List[str]] = None,
+    arquivos_formulario: Optional[Dict[str, str]] = None,
     regex_codigo: str = r"^A[1-4]$",
     stopwords: Optional[str] = None,
     caminho_saida: Optional[str] = None,
 ) -> List[Dict]:
     """
-    Cruza respostas com a planilha mestra e retorna dados para relatório.
+    Cruza respostas com a lista de nomes e retorna dados para relatório.
+
+    Parâmetros
+    ----------
+    nomes : list[str]
+        Lista de nomes a serem conferidos.
+    amostras : list[str] or None
+        Códigos de amostra, ex: ['A1','A2','A3','A4'].
+    arquivos_formulario : dict[str, str] or None
+        Mapeamento {tipo: caminho_ou_uri}.
+    regex_codigo : str
+        Regex para validar códigos de amostra nas respostas.
+    stopwords : str or None
+        Stopwords separadas por vírgula.
+    caminho_saida : str or None
+        Caminho para salvar CSV.
 
     Retorna
     -------
-    list[dict] com chaves 'nome', 'amostra', e uma chave bool por formulário.
+    list[dict] com chaves 'nome', 'amostra', e chaves bool por formulário.
     """
     sw_set = parse_stopwords(stopwords)
 
-    # --- Carrega planilha mestra ---
-    df_mestra = pd.read_csv(caminho_output, encoding="utf-8")
-    df_mestra.columns = df_mestra.columns.str.strip()
+    # --- Monta mapa de nomes normalizados ---
+    nome_map: Dict[str, str] = {}
+    for n in nomes:
+        n_norm = normalizar_nome(n, sw_set)
+        if n_norm:
+            nome_map[n_norm] = n
 
-    if coluna_nome not in df_mestra.columns:
-        raise ValueError(
-            f"Coluna '{coluna_nome}' não encontrada. "
-            f"Disponíveis: {list(df_mestra.columns)}"
-        )
-
-    # Normaliza nomes da lista mestra
-    df_mestra["_nome_norm"] = df_mestra[coluna_nome].apply(
-        lambda n: normalizar_nome(n, sw_set)
-    )
-    # Mapa: nome_normalizado → nome_original
-    nome_map = dict(zip(df_mestra["_nome_norm"], df_mestra[coluna_nome]))
-
-    # --- Descobre arquivos e tipos ---
-    arquivos_csv = _listar_arquivos(pasta_respostas)
-    tipos_form = _detectar_tipos(arquivos_csv)
-
-    if not arquivos_csv:
-        print("[AVISO] Nenhum CSV encontrado.", file=sys.stderr)
+    if not nome_map:
+        rprint("[red]Nenhum nome válido fornecido.[/]")
         return []
 
-    print(f"[bold]Amostras:[/] {amostras}")
-    print(f"[bold]Formulários:[/] {tipos_form}")
-    print(f"[bold]Arquivos:[/] {len(arquivos_csv)}\n")
+    # --- Monta lista de (tipo, caminho) a partir do dict ---
+    if not arquivos_formulario:
+        rprint("[yellow]Nenhum arquivo de resposta fornecido.[/]")
+        return []
 
-    # --- Estrutura de resultado: {(nome_norm, codigo): {tipo: bool}} ---
+    entradas = [(t, p) for t, p in arquivos_formulario.items() if p]
+    if not entradas:
+        rprint("[yellow]Nenhum arquivo de resposta fornecido.[/]")
+        return []
+
+    tipos_form = list(dict.fromkeys(t for t, _ in entradas))
+
+    rprint(f"[bold]Amostras:[/] {amostras}")
+    rprint(f"[bold]Formulários:[/] {tipos_form}")
+    rprint(f"[bold]Arquivos:[/] {len(entradas)}")
+    print()
+
+    # --- Estrutura de resultado ---
     resultado: Dict[Tuple[str, str], Dict[str, bool]] = defaultdict(
         lambda: {t: False for t in tipos_form}
     )
-
     pessoas_sem_match: Dict[str, List[Tuple[str, str, str]]] = defaultdict(list)
 
-    for caminho in arquivos_csv:
-        nome_arquivo = os.path.basename(caminho)
-        tipo = extrair_tipo_formulario(nome_arquivo)
-        if tipo is None:
-            tipo = os.path.splitext(nome_arquivo)[0].upper()
+    from .reader import resolver_arquivo
 
-        print(f"  [dim]{nome_arquivo}[/] → [bold]{tipo}[/]")
+    for tipo, origem in entradas:
+        rprint(f"  [dim]{origem}[/] → [bold]{tipo}[/]")
 
         try:
-            df_resp = ler_respostas(caminho, regex_codigo)
+            caminho_local = resolver_arquivo(origem)
+            df_resp = ler_respostas(caminho_local, regex_codigo)
         except Exception as e:
-            print(f"  [red][ERRO][/] {e}")
+            rprint(f"  [red][ERRO][/] {e}")
             continue
 
         for _, r in df_resp.iterrows():
             nome_norm = r["nome_norm"]
             codigo = r["codigo"]
 
-            # Match exato
             if nome_norm in nome_map:
                 resultado[(nome_norm, codigo)][tipo] = True
                 continue
 
-            # Match parcial: primeiro + último nome (incerto → "partial")
             matched = _match_parcial(nome_norm, nome_map)
             if matched:
                 resultado[(matched, codigo)][tipo] = "partial"
@@ -96,9 +103,8 @@ def processar(
 
             pessoas_sem_match[tipo].append((r["nome"], nome_norm, codigo))
 
-    # --- Converte para lista de dicionários (formato da tabela) ---
+    # --- Converte para lista de dicionários ---
     linhas = []
-    # Ordena por nome original, depois por código
     for (nome_norm, codigo), forms in sorted(resultado.items()):
         nome_original = nome_map.get(nome_norm, nome_norm)
         linhas.append({"nome": nome_original, "amostra": codigo, **forms})
@@ -110,18 +116,19 @@ def processar(
         for items in pessoas_sem_match.values():
             for nome_original, _, _ in items:
                 todos.add(nome_original.strip())
-        print(
+        rprint(
             f"[yellow]⚠ Pessoas nas respostas mas NÃO na lista "
             f"({len(todos)}):[/]"
         )
         for n in sorted(todos):
-            print(f"  [dim]• {n}[/]")
+            rprint(f"  [dim]• {n}[/]")
 
     # --- Salva CSV se solicitado ---
     if caminho_saida:
         _salvar_csv(linhas, caminho_saida)
 
     return linhas
+
 
 
 # ---------------------------------------------------------------------------
@@ -141,62 +148,10 @@ def _match_parcial(nome_norm: str, nome_map: Dict[str, str]) -> Optional[str]:
     return None
 
 
-def _listar_arquivos(pasta: str) -> List[str]:
-    """Lista CSVs de uma pasta ou retorna arquivo único."""
-    if os.path.isdir(pasta):
-        return sorted(glob(os.path.join(pasta, "*.csv")))
-    return [pasta]
-
-
-def _detectar_tipos(arquivos: List[str]) -> List[str]:
-    """Detecta tipos de formulário pelos nomes dos arquivos."""
-    tipos = []
-    for arq in arquivos:
-        tipo = extrair_tipo_formulario(os.path.basename(arq))
-        if tipo and tipo not in tipos:
-            tipos.append(tipo)
-
-    if not tipos:
-        tipos = [os.path.splitext(os.path.basename(a))[0].upper() for a in arquivos]
-
-    return tipos
-
-
 def _salvar_csv(linhas: List[Dict], caminho: str) -> None:
-    """Salva resultado em CSV no formato Nome, Amostra, Form1, Form2, ..."""
+    """Salva resultado em CSV."""
     if not linhas:
         return
     df = pd.DataFrame(linhas)
     df.to_csv(caminho, index=False, encoding="utf-8")
-    print(f"\n[dim]CSV salvo em: {caminho}[/]")
-
-
-
-def _log_aviso(msg: str):
-    print(f"[AVISO] {msg}", file=sys.stderr)
-
-
-def _imprimir_relatorio(
-    df, colunas_form, coluna_nome, matches, nao_encontradas,
-    n_amostras, n_tipos,
-):
-    sep = "=" * 60
-    print(f"\n{sep}\nRELATÓRIO\n{sep}")
-    print(f"Matches: {matches}")
-
-    if nao_encontradas:
-        nomes = sorted(set(n.strip() for n, _, _ in nao_encontradas))
-        print(f"\nPessoas nas respostas mas NÃO na lista ({len(nomes)}):")
-        for n in nomes:
-            print(f"  • {n}")
-
-    print(f"\n{sep}\nRESUMO POR PESSOA\n{sep}")
-    total_possivel = n_amostras * n_tipos
-    for _, row in df.iterrows():
-        n = sum(row[colunas_form].astype(bool))
-        status = "COMPLETO" if row["FINAL"] else f"{n}/{total_possivel}"
-        print(f"  {row[coluna_nome]:<40s} {status}")
-
-    total = len(df)
-    completos = df["FINAL"].sum()
-    print(f"\nTotal: {total} | Completos: {completos} | Pendentes: {total - completos}")
+    rprint(f"\n[dim]CSV salvo em: {caminho}[/]")
