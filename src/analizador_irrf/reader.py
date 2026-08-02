@@ -1,4 +1,4 @@
-"""Leitura de arquivos CSV de resposta e detecção de tipo de formulário."""
+"""Leitura de arquivos CSV de resposta."""
 
 import os
 import re
