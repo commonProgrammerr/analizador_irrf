@@ -14,24 +14,33 @@ from .reader import ler_respostas, extrair_tipo_formulario
 from .report import exibir_tabela, exibir_nao_encontrados
 
 
-@click.command(name="analizador-irrf")
+@click.command(
+    name="analizador-irrf",
+    context_settings=dict(
+        allow_extra_args=True,
+        ignore_unknown_options=True,
+    ),
+)
 @shared_options
+@click.pass_context
 def main(
+    ctx,
     nomes: str,
     amostras: str,
     coluna_nome: str,
     regex_codigo: str,
     stopwords: str,
     saida: str,
-    sniff: str = None,
-    molhada: str = None,
-    umida: str = None,
-    seca: str = None,
 ) -> None:
     """Cruza respostas de formulários com a lista de nomes e exibe tabela.
 
     Forneça a lista de nomes via --nomes (arquivo .txt ou .csv)
-    e os arquivos de resposta via --sniff, --molhada, --umida, --seca.
+    e os arquivos de resposta no formato --<nome> <caminho>, onde <nome>
+    é o nome que aparecerá como coluna no relatório (ex: --sniff,
+    --molhada, ou qualquer nome de sua escolha, como --faro-seco).
+
+    Exemplo:
+      irrf --nomes nomes.txt -a A1,A2 --sniff sniff.csv --faro-seco faro.csv
     """
     amostras_lista = parse_amostras(amostras)
 
@@ -40,9 +49,7 @@ def main(
 
     nomes_lista = ler_nomes(nomes, coluna_nome)
 
-    arquivos_form = coletar_arquivos_formulario(
-        sniff=sniff, molhada=molhada, umida=umida, seca=seca,
-    )
+    arquivos_form = coletar_arquivos_formulario(ctx.args)
 
     linhas = processar(
         nomes=nomes_lista,

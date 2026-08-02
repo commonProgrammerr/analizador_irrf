@@ -37,19 +37,6 @@ _opt_saida = click.option(
     "-s", "--saida", default=None,
     help="Arquivo CSV de saída",
 )
-_opts_form = [
-    click.option(
-        f"--{tipo}",
-        default=None,
-        help=f"Arquivo ou URI do formulário {label}",
-    )
-    for tipo, label in [
-        ("sniff", "Sniff"),
-        ("molhada", "Molhada"),
-        ("umida", "Úmida"),
-        ("seca", "Seca"),
-    ]
-]
 
 
 def shared_options(func):
@@ -58,8 +45,6 @@ def shared_options(func):
         _opt_nomes, _opt_amostras,
         _opt_coluna_nome, _opt_regex_codigo, _opt_stopwords, _opt_saida,
     ]):
-        func = opt(func)
-    for opt in _opts_form:
         func = opt(func)
     return func
 
