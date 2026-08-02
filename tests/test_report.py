@@ -14,6 +14,6 @@ class TestOrdenarTipos(TestCase):
 
     def test_apenas_desconhecidos_mantem_ordem_de_aparicao(self):
         self.assertEqual(
-            _ordenar_tipos(["FARO-SECO", "X1", "FARO-SECO"]),
-            ["FARO-SECO", "X1", "FARO-SECO"],
+            _ordenar_tipos(["X1", "FARO-SECO", "X2"]),
+            ["X1", "FARO-SECO", "X2"],
         )

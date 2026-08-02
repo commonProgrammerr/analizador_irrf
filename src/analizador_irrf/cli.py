@@ -78,7 +78,7 @@ def coletar_arquivos_formulario(args: List[str]) -> Dict[str, str]:
             nome, sep, valor = token[2:].partition("=")
             nome = nome.strip("-")
             if not nome:
-                raise click.UsageError(f"Flag inválido: {token}")
+                raise click.UsageError(f"Flag inválida: {token}")
             nome_norm = nome.upper()
             if nome_norm in formularios:
                 raise click.UsageError(f"Formulário duplicado: --{nome}")
