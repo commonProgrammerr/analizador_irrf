@@ -10,7 +10,7 @@ from .cli import (
 )
 from .matcher import processar
 from .normalizer import normalizar_nome, normalizar_texto, normalizar_coluna
-from .reader import ler_respostas, extrair_tipo_formulario
+from .reader import ler_respostas
 from .report import exibir_tabela, exibir_nao_encontrados
 
 
@@ -80,5 +80,4 @@ __all__ = [
     "normalizar_texto",
     "normalizar_coluna",
     "ler_respostas",
-    "extrair_tipo_formulario",
 ]

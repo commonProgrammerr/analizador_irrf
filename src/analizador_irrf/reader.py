@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 import pandas as pd
 from typing import Optional
-from .normalizer import normalizar_coluna, normalizar_nome, normalizar_texto
+from .normalizer import normalizar_coluna, normalizar_nome
 
 
 # ---------------------------------------------------------------------------
@@ -173,26 +173,4 @@ def _detectar_coluna(df: pd.DataFrame, predicate) -> Optional[str]:
     for c in df.columns:
         if predicate(normalizar_coluna(c)):
             return c
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Detecção do tipo de formulário pelo nome do arquivo
-# ---------------------------------------------------------------------------
-
-
-def extrair_tipo_formulario(nome_arquivo: str) -> Optional[str]:
-    """
-    Extrai o tipo de formulário do nome do arquivo.
-    Ex: 'Acompanhamento - Sniff.csv' → 'SNIFF'
-         'avaliacao_molho.csv'       → 'MOLHO'
-         'resultados_umida.csv'      → 'UMIDA'
-         'teste_seca_final.csv'      → 'SECA'
-    """
-    nome_norm = normalizar_texto(nome_arquivo, manter_hifen=True)
-
-    for tipo in ["SNIFF", "MOLHO", "UMIDA", "SECA"]:
-        if tipo in nome_norm:
-            return tipo
-
     return None
