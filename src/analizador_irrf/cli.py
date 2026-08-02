@@ -1,6 +1,6 @@
 """Interface de linha de comando (CLI) via Click + rich_click."""
 
-from typing import List
+from typing import Dict, List
 
 import click
 import rich_click
@@ -37,19 +37,6 @@ _opt_saida = click.option(
     "-s", "--saida", default=None,
     help="Arquivo CSV de saída",
 )
-_opts_form = [
-    click.option(
-        f"--{tipo}",
-        default=None,
-        help=f"Arquivo ou URI do formulário {label}",
-    )
-    for tipo, label in [
-        ("sniff", "Sniff"),
-        ("molhada", "Molhada"),
-        ("umida", "Úmida"),
-        ("seca", "Seca"),
-    ]
-]
 
 
 def shared_options(func):
@@ -59,28 +46,55 @@ def shared_options(func):
         _opt_coluna_nome, _opt_regex_codigo, _opt_stopwords, _opt_saida,
     ]):
         func = opt(func)
-    for opt in _opts_form:
-        func = opt(func)
     return func
 
 
-def coletar_arquivos_formulario(
-    sniff: str = None,
-    molhada: str = None,
-    umida: str = None,
-    seca: str = None,
-) -> dict:
-    """Coleta os caminhos/URIs dos formulários. Retorna {tipo: caminho}."""
-    formas = {"SNIFF": sniff, "MOLHO": molhada, "UMIDA": umida, "SECA": seca}
-    explicitos = {t: p for t, p in formas.items() if p is not None}
+def coletar_arquivos_formulario(args: List[str]) -> Dict[str, str]:
+    """Coleta pares --<nome> <caminho> de ctx.args. Retorna {NOME: caminho}."""
+    formularios: Dict[str, str] = {}
+    pendente: str | None = None
 
-    if not explicitos:
+    for token in args:
+        if token.startswith("--"):
+            if pendente is not None:
+                raise click.UsageError(
+                    f"Faltou o valor para o formulário --{pendente.lower()}."
+                )
+            nome, sep, valor = token[2:].partition("=")
+            nome = nome.strip("-")
+            if not nome:
+                raise click.UsageError(f"Flag inválida: {token}")
+            nome_norm = nome.upper()
+            if nome_norm in formularios:
+                raise click.UsageError(f"Formulário duplicado: --{nome}")
+            if sep:
+                if not valor:
+                    raise click.UsageError(
+                        f"Valor vazio para o formulário --{nome}."
+                    )
+                formularios[nome_norm] = valor
+            else:
+                pendente = nome_norm
+            continue
+
+        if token.startswith("-"):
+            raise click.UsageError(f"Argumento inesperado: {token}")
+
+        if pendente is None:
+            raise click.UsageError(f"Argumento inesperado: {token}")
+
+        formularios[pendente] = token
+        pendente = None
+
+    if pendente is not None:
         raise click.UsageError(
-            "Informe ao menos um de "
-            "--sniff/--molhada/--umida/--seca."
+            f"Faltou o valor para o formulário --{pendente.lower()}."
         )
-
-    return explicitos
+    if not formularios:
+        raise click.UsageError(
+            "Informe ao menos um formulário no formato --<nome> <arquivo>."
+        )
+    return formularios
 
 
 def ler_nomes(caminho: str, coluna: str = "Nome") -> List[str]:
