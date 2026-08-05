@@ -50,7 +50,7 @@ async def submit(
     umida: str = Form(""),
     seca: str = Form(""),
     coluna_nome: str = Form("Nome"),
-    regex_codigo: str = Form(r"^A[1-4]$"),
+    regex_codigo: str = Form(r"^\d+$"),
     stopwords: str = Form("de,da,do,dos,das,e,o,a,os,as"),
 ):
     global _ultimo_resultado

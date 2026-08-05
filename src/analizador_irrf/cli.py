@@ -26,7 +26,7 @@ _opt_coluna_nome = click.option(
     help="Coluna com o nome da pessoa (quando --nomes é um CSV)",
 )
 _opt_regex_codigo = click.option(
-    "--regex-codigo", default=r"^A[1-4]$", show_default=True,
+    "--regex-codigo", default=r"^\d+$", show_default=True,
     help="Regex para validar códigos de amostra nas respostas",
 )
 _opt_stopwords = click.option(

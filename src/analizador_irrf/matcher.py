@@ -14,7 +14,7 @@ def processar(
     nomes: List[str],
     amostras: Optional[List[str]] = None,
     arquivos_formulario: Optional[Dict[str, str]] = None,
-    regex_codigo: str = r"^A[1-4]$",
+    regex_codigo: str = r"^\d+$",
     stopwords: Optional[str] = None,
     caminho_saida: Optional[str] = None,
 ) -> List[Dict]:
