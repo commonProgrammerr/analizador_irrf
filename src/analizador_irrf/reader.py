@@ -158,8 +158,11 @@ def ler_respostas(
 
     # Remove vazios e linhas de teste
     df = df.dropna(subset=["nome"])
+    # Converte para string: planilhas exportam códigos numéricos como int
+    df["nome"] = df["nome"].astype(str)
+    df["codigo"] = df["codigo"].astype(str)
     df = df[~df["nome"].str.lower().str.startswith("teste")]
-    df = df[df["codigo"].astype(str).str.upper().str.match(regex_codigo, na=False)]
+    df = df[df["codigo"].str.upper().str.match(regex_codigo, na=False)]
 
     df["codigo"] = df["codigo"].str.upper().str.strip()
     df["nome_norm"] = df["nome"].apply(normalizar_nome)
